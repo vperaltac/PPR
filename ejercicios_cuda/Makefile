@@ -10,8 +10,8 @@ GENCODE_SM50    := -gencode arch=compute_50,code=sm_50
 GENCODE_SM60    := -gencode arch=compute_60,code=sm_60
 GENCODE_SMXX    := -gencode arch=compute_70,code=compute_70
 GENCODE_FLAGS   ?= $(GENCODE_SM30) $(GENCODE_SM35) $(GENCODE_SM35) $(GENCODE_SM50) $(GENCODE_SM60) $(GENCODE_SMXX)
-OBJ = ejercicio8
-SRC = ejercicio8.cu
+OBJ = reduccion.out
+SRC = reduccion.cu
 
 $(OBJ):$(SRC)
 	nvcc -I./includes  -O3 -m64   $(GENCODE_FLAGS) $(SRC) -o $(OBJ)
