@@ -4,6 +4,13 @@
 #include <sys/time.h>
 #include <assert.h>
 #include "Graph.h"
+#include <iomanip>      // std::setw
+
+#include <cooperative_groups.h>
+#include <stdio.h>
+
+namespace cg = cooperative_groups;
+
 
 // CUDA runtime
 //#include <cuda_runtime.h>
@@ -12,9 +19,26 @@
 //#include <helper_functions.h>
 //#include <helper_cuda.h>
 
-#define blocksize 256
+#define blocksize    1024
+#define blocksize_2D 32
 
 using namespace std;
+
+// Utility class used to avoid linker errors with extern
+// unsized shared memory arrays with templated type
+template <class T>
+struct SharedMemory {
+  __device__ inline operator T *() {
+    extern __shared__ int __smem[];
+    return (T *)__smem;
+  }
+
+  __device__ inline operator const T *() const {
+    extern __shared__ int __smem[];
+    return (T *)__smem;
+  }
+};
+
 
 //**************************************************************************
 double cpuSecond()
@@ -25,19 +49,84 @@ double cpuSecond()
 }
 //**************************************************************************
 
+template <class T>
+__global__ void reduce2(T *g_idata, T *g_odata, unsigned int n) {
+  // Handle to thread block group
+  cg::thread_block cta = cg::this_thread_block();
+  T *sdata = SharedMemory<T>();
+
+  // load shared mem
+  unsigned int tid = threadIdx.x;
+  unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+  sdata[tid] = (i < n) ? g_idata[i] : 0;
+
+  cg::sync(cta);
+
+  // do reduction in shared mem
+  for (unsigned int s = blockDim.x / 2; s > 0; s >>= 1) {
+    if (tid < s) {
+		if(sdata[tid] < sdata[tid+s])
+			sdata[tid] = sdata[tid+s];
+    }
+
+    cg::sync(cta);
+  }
+
+  // write result for this block to global mem
+  if (tid == 0) g_odata[blockIdx.x] = sdata[0];
+}
+
+
+/*
+    This version uses n/2 threads --
+    it performs the first level of reduction when reading from global memory.
+*/
+template <class T>
+__global__ void reduce3(T *g_idata, T *g_odata, unsigned int n) {
+  // Handle to thread block group
+  cg::thread_block cta = cg::this_thread_block();
+  T *sdata = SharedMemory<T>();
+
+  // perform first level of reduction,
+  // reading from global memory, writing to shared memory
+  unsigned int tid = threadIdx.x;
+  unsigned int i = blockIdx.x * (blockDim.x * 2) + threadIdx.x;
+
+  T mySum = (i < n) ? g_idata[i] : 0;
+
+  if (i + blockDim.x < n) mySum += g_idata[i + blockDim.x];
+
+  sdata[tid] = mySum;
+  cg::sync(cta);
+
+  // do reduction in shared mem
+  for (unsigned int s = blockDim.x / 2; s > 0; s >>= 1) {
+    if (tid < s) {
+      sdata[tid] = mySum = mySum + sdata[tid + s];
+    }
+
+    cg::sync(cta);
+  }
+
+  // write result for this block to global mem
+  if (tid == 0) g_odata[blockIdx.x] = mySum;
+}
+
+
 __global__ void floyd_kernel2D(int *M, const int nverts, const int k){
 	int j = blockIdx.x * blockDim.x + threadIdx.x;
 	int i = blockIdx.y * blockDim.y + threadIdx.y;
 
 	if(i < nverts && j < nverts && (i!=j && i!=k && j!=k)){
-	int index=i*nverts+j;
+		int index=i*nverts+j;
 		int Mij = M[index];
 		
-			int Mikj = M[i*nverts+k] + M[k*nverts+j];
-			Mij = (Mij > Mikj) ? Mikj : Mij;
-			M[index] = Mij;
-		}
+		int Mikj = M[i*nverts+k] + M[k*nverts+j];
+		Mij = (Mij > Mikj) ? Mikj : Mij;
+		M[index] = Mij;
 	}
+}
 
 
 __global__ void floyd_kernel(int * M, const int nverts, const int k) {
@@ -213,4 +302,20 @@ int main (int argc, char *argv[]) {
 	
 	//**************************************************************************************************************************
 
+
+	// Reducción para calcular la longitud del camino de mayor longitud dentro de los caminos más cortos encontrados.
+	int smemSize = 256 * sizeof(int);
+	int * d_odata = NULL;
+	int * d_idata = NULL;
+	cudaMalloc((void **) &d_idata, size);
+	cudaMalloc((void **) &d_odata, size);
+	
+	cudaMemcpy(d_idata,c_Out_M_2D,size, cudaMemcpyHostToDevice);
+
+	reduce2<int><<<64,256,smemSize>>>(d_idata,d_odata,size);
+
+	int *res = new int[nverts2];
+	cudaMemcpy(res, d_odata, size, cudaMemcpyDeviceToHost);
+
+	printf("Camino de mayor longitud: %d\n",res[0]);
 }
