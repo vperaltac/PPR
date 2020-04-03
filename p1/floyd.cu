@@ -26,21 +26,18 @@ double cpuSecond()
 //**************************************************************************
 
 __global__ void floyd_kernel2D(int *M, const int nverts, const int k){
-	int i = blockIdx.x * blockDim.x + threadIdx.x;
-	int j = blockIdx.y * blockDim.y + threadIdx.y;
+	int j = blockIdx.x * blockDim.x + threadIdx.x;
+	int i = blockIdx.y * blockDim.y + threadIdx.y;
 
+	if(i < nverts && j < nverts && (i!=j && i!=k && j!=k)){
 	int index=i*nverts+j;
-
-	if(i < nverts && j < nverts){
 		int Mij = M[index];
 		
-		if(i!=j && i!=k && j!=k){
 			int Mikj = M[i*nverts+k] + M[k*nverts+j];
 			Mij = (Mij > Mikj) ? Mikj : Mij;
 			M[index] = Mij;
 		}
 	}
-}
 
 
 __global__ void floyd_kernel(int * M, const int nverts, const int k) {
@@ -126,13 +123,6 @@ int main (int argc, char *argv[]) {
 	cudaDeviceSynchronize();
 
 	double Tgpu = cpuSecond()-t1;
-/* 
-	for(int i=0;i<nverts;i++){
-		for(int j=0;j<nverts;j++){
-			cout << c_Out_M[j+i*nverts] << " ";
-		}
-		cout << endl;
-	} */
 
 	cout << "Tiempo gastado GPU= " << Tgpu << endl << endl;
 	//**************************************************************************************************************************
@@ -155,7 +145,7 @@ int main (int argc, char *argv[]) {
 		cout << "ERROR COPIA A GPU" << endl;
 	}
 
-	dim3 threadsPerBlock (4,4);
+	dim3 threadsPerBlock (blocksize_2D,blocksize_2D);
 	dim3 numBlocks( ceil((float)(nverts)/threadsPerBlock.x),
 					ceil((float)(nverts)/threadsPerBlock.y));
 
@@ -208,8 +198,8 @@ int main (int argc, char *argv[]) {
 
 	double t2 = cpuSecond() - t1;
 	cout << "Tiempo gastado CPU= " << t2 << endl << endl;
-	cout << "Ganancia= " << t2 / Tgpu << endl;
-
+	cout << "Ganancia para GPU1D: " << t2 / Tgpu << endl;
+	cout << "Ganancia para GPU2D: " << t2 / t4   << endl;
 
 	for(int i = 0; i < nverts; i++)
 		for(int j = 0;j < nverts; j++)
@@ -222,4 +212,5 @@ int main (int argc, char *argv[]) {
 				cout << "Error (" << i << "," << j << ")   " << c_Out_M_2D[i*nverts+j] << "..." << G.arista(i,j) << endl;
 	
 	//**************************************************************************************************************************
+
 }
