@@ -318,4 +318,7 @@ int main (int argc, char *argv[]) {
 	cudaMemcpy(res, d_odata, size, cudaMemcpyDeviceToHost);
 
 	printf("Camino de mayor longitud: %d\n",res[0]);
+
+	delete [] res; delete [] c_Out_M; delete [] c_Out_M_2D;
+	cudaFree(d_In_M); cudaFree(d_In_M_2D); cudaFree(d_idata); cudaFree(d_odata);
 }
