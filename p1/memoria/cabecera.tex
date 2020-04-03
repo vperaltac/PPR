@@ -1,0 +1,65 @@
+%----------------------------------------------------------------------------------------
+%	PAQUETES Y CONFIGURACION GENERAL
+%----------------------------------------------------------------------------------------
+
+\documentclass{article}
+
+% ---- Entrada y salida de texto -----
+\usepackage[utf8]{inputenc}
+
+% ---- Márgenes ------
+\usepackage[margin=1.3in]{geometry}
+
+% ---- Idioma --------
+\usepackage[spanish, es-tabla]{babel} % Selecciona el español para palabras introducidas automáticamente, p.ej. "septiembre" en la fecha y especifica que se use la palabra Tabla en vez de Cuadro
+
+% ------ Requerido para tablas
+\usepackage{graphicx}
+\usepackage[table,xcdraw]{xcolor}
+\usepackage{colortbl} % permite añadir colores a tablas
+\usepackage{multirow} % para hacer tablas complejas
+\usepackage{threeparttable}
+
+
+
+% ---- Otros paquetes ----
+\RequirePackage{verbatim}
+
+% para que aparezcan las referencias en el índice de contenido.
+\usepackage[nottoc,numbib]{tocbibind}
+
+\usepackage[scaled]{beramono} % escala la fuente de texttt con respecto a la fuente del texto
+
+\usepackage{hyperref} % utilizado para que el indice tenga hipervinculos.
+\hypersetup{
+    colorlinks,
+    citecolor=black,
+    filecolor=black,
+    linkcolor=black,
+    urlcolor=black
+} % elimina los bordes rojos un poco molestos de hyperref
+\usepackage{url} % ,href} %para incluir URLs e hipervínculos dentro del texto (aunque hay que instalar href)
+\usepackage{amsmath,amsfonts,amsthm} % Math packages
+%\usepackage{graphics,graphicx, floatrow} %para incluir imágenes y notas en las imágenes
+\usepackage{graphics,graphicx, float} %para incluir imágenes y colocarlas
+
+\usepackage{fancyvrb}
+%\usepackage{sectsty} % Allows customizing section commands
+%\allsectionsfont{\centering \normalfont\scshape} % Make all sections centered, the default font and small caps
+
+\usepackage{fancyhdr} % Custom headers and footers
+\pagestyle{fancyplain} % Makes all pages in the document conform to the custom headers and footers
+\fancyhead{} % No page header - if you want one, create it in the same way as the footers below
+\fancyfoot[L]{} % Empty left footer
+\fancyfoot[C]{} % Empty center footer
+\fancyfoot[R]{\thepage} % Page numbering for right footer
+\renewcommand{\headrulewidth}{0pt} % Remove header underlines
+\renewcommand{\footrulewidth}{0pt} % Remove footer underlines
+\setlength{\headheight}{13.6pt} % Customize the height of the header
+\setlength\parindent{0pt} % Removes all indentation from paragraphs - comment this line for an assignment with lots of text
+
+\newcommand{\horrule}[1]{\rule{\linewidth}{#1}} % Create horizontal rule command with 1 argument of height
+
+% minted ofrece resaltado de sintaxis para código
+\usepackage{minted}
+\definecolor{bg}{rgb}{0.95,0.95,0.95} 
