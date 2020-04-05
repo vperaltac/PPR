@@ -97,7 +97,7 @@ Los \textit{threads} se obtienen de la variable global $blocksize\_2D$ que será
 El número de bloques se obtiene dividiendo la cantidad de vértices del problema por los \textit{threads} utilizados y utilizando \textit{ceil} para redondear la cifra obtenida.
 Por último, se lanza un kernel por cada iteración sobre k, esta parte sigue siendo igual que en la solución con bloques unidimensionales.
 
-\section{Análisis de resultados}
+\subsection{Análisis de resultados}
 Dado que los tamaños típicos para la versión bidimensional son $8x8$, $16x16$, $32x32$ y $64x64$, voy a utilizar estos tamaños para comparar ambas versiones. A continuación se muestran todos los resultados obtenidos incluidos con representaciones gráficas mostrando cómo varía la ganancia en velocidad al aumentar el tamaño del problema para cada \textit{BSize}.
 
 % Please add the following required packages to your document preamble:
@@ -182,7 +182,7 @@ Dado que los tamaños típicos para la versión bidimensional son $8x8$, $16x16$
 
 Los resultados indican que la versión bidimensional obtiene mejores resultados con bloques de gran tamaño mientras que la versión unidimensional mantiene un mejor rendimiento con tamaños pequeños de bloque, a excepción de 16 hebras donde el rendimiento es bastante bajo para ambas versiones. Como ya se dijo en clase, CUDA no está pensado para ejecutarse con pocas hebras.
 
-\section{Reducción para camino más largo}
+\subsection{Reducción para camino más largo}
 Para la última parte de este ejercicio, se pide obtener la longitud del camino de mayor longitud dentro de los caminos más cortos encontrados. He utilizado una de las reducciones proporcionadas por NVIDIA en los \textit{CUDA Samples}. La reducción que ellos proporcionaban era para realizar una suma. Por tanto tuve que modificar la sección donde se realiza la suma para que buscara el máximo. El código final de la reducción es el siguiente:
 
 \begin{minted}[bgcolor=bg,showspaces=false,breaklines=true,tabsize=4]{cuda}
@@ -220,5 +220,161 @@ Hay que tener en cuenta que esta versión utiliza \textit{templates} para el tip
 \begin{minted}[bgcolor=bg,showspaces=false,breaklines=true,tabsize=4]{cuda}
 reduce2<int><<<64,256,smemSize>>>(d_idata,d_odata,size);
 \end{minted}
+
+\section{Implementación CUDA de una operación vectorial}
+Tanto para la versión con memoria global como para la versión con memoria compartida he optado por mantener en \textit{kernels} separados las reducciones necesarias para obtener los resultados del vector D y el máximo.
+
+El kernel para realizar una reducción con la operación suma y así obtener el resultado de D es el mismo que utilicé en los ejercicios de CUDA. Es importante mencionar que la última reducción no se realiza en este \textit{kernel}, se realiza en la CPU. El \textit{kernel} es el siguiente: 
+\begin{minted}[bgcolor=bg,showspaces=false,breaklines=true,tabsize=4]{cuda}
+__global__ void reduceSum(float *d_V, float*d_out,int N){
+	extern __shared__ float sdata[];
+	int tid = threadIdx.x;
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
+	
+	sdata[tid] = ((i < N) ? d_V[i] : 0.f);
+	__syncthreads();
+	
+	for (int s=blockDim.x/2;s>0;s>>=1){
+		if(tid<s)
+		sdata[tid] += sdata[tid + s];
+		
+		__syncthreads();
+	}
+	
+	if (tid == 0)
+	d_out[blockIdx.x] = sdata[0];
+	
+}
+\end{minted}
+
+Con respecto al kernel para buscar el máximo he utilizado el mismo que en la primera parte de esta práctica: 
+
+\begin{minted}[bgcolor=bg,showspaces=false,breaklines=true,tabsize=4]{cuda}
+template <class T>
+__global__ void reduceMax(T *g_idata, T *g_odata, unsigned int n) {
+	// Handle to thread block group
+	cg::thread_block cta = cg::this_thread_block();
+	T *sdata = SharedMemory<T>();
+	
+	// load shared mem
+	unsigned int tid = threadIdx.x;
+	unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+	
+	sdata[tid] = (i < n) ? g_idata[i] : 0;
+	
+	cg::sync(cta);
+	
+	// do reduction in shared mem
+	for (unsigned int s = blockDim.x / 2; s > 0; s >>= 1) {
+		if (tid < s) {
+			if(sdata[tid] < sdata[tid+s])
+			sdata[tid] = sdata[tid+s];
+		}
+		
+		cg::sync(cta);
+	}
+	
+	// write result for this block to global mem
+	if (tid == 0) g_odata[blockIdx.x] = sdata[0];
+}
+\end{minted}
+
+Mostrados los kernels comunes a ambas soluciones, ahora solo queda mostrar las soluciones en sí. El siguiente kernel corresponde a la solución con memoria global:
+
+\begin{minted}[bgcolor=bg,showspaces=false,breaklines=true,tabsize=4]{cuda}
+__global__ void transformacion(float *A, float *B, float *C, float *D){
+	int tid    = threadIdx.x;
+	int i      = blockIdx.x * blockDim.x + threadIdx.x;
+	int istart = blockIdx.x*blockDim.x;
+	int iend   = istart + blockDim.x;
+	
+	C[i] = 0.0;
+	
+	for(int s=istart; s<iend;s++){
+		float a = A[s]*i;
+		
+		if((int)ceil(a) % 2 == 0)
+		C[i]+= a + B[s];
+		else
+		C[i]+= a - B[s];
+	}
+	
+	if (tid == 0)
+	D[blockIdx.x] = C[i];
+}
+\end{minted}
+
+La solución con memoria compartida es la siguiente:
+
+\begin{minted}[bgcolor=bg,showspaces=false,breaklines=true,tabsize=4]{cuda}
+__global__ void transformacion_s(float *A, float *B, float *C, float *D){
+	// sólo se puede utilizar 1 vector en memoria compartida
+	// por tanto es necesario almacenar A,B y C en el mismo vector
+	extern __shared__ float sdata[];
+	float *sdata_A = sdata;
+	float *sdata_B = sdata + blockDim.x;
+	float *sdata_C = sdata + blockDim.x*2;
+	
+	int tid    = threadIdx.x;
+	int i      = blockIdx.x * blockDim.x + threadIdx.x;
+	
+	sdata_A[tid] = A[i];
+	sdata_B[tid] = B[i];
+	sdata_C[tid] = 0.0;
+	__syncthreads();
+	
+	for(int s=0; s<blockDim.x;s++){
+		float a = sdata_A[s]*i;
+		
+		if((int)ceil(a) % 2 == 0)
+		sdata_C[tid]+= a + sdata_B[s];
+		else
+		sdata_C[tid]+= a - sdata_B[s];
+	}
+	
+	C[i] = sdata_C[tid];
+	
+	if (tid == 0)
+	D[blockIdx.x] = sdata_C[tid];
+}
+\end{minted}
+
+\subsection{Resultados obtenidos}
+A continuación muestro una tabla con los resultados obtenidos con 32768 bloques y tamaños de bloque 64,128 y 256:
+
+% Please add the following required packages to your document preamble:
+% \usepackage[table,xcdraw]{xcolor}
+% If you use beamer only pass "xcolor=table" option, i.e. \documentclass[xcolor=table]{beamer}
+\begin{table}[H]
+	\centering
+	\begin{tabular}{|l|l|l|l|l|l|}
+		\hline
+		& \cellcolor[HTML]{ECF4FF}TCPU (sec) & \cellcolor[HTML]{ECF4FF}TGPU global & \cellcolor[HTML]{ECF4FF}SGPU global & \cellcolor[HTML]{ECF4FF}TGPU shared & \cellcolor[HTML]{ECF4FF}SGPU shared \\ \hline
+		\cellcolor[HTML]{FFFFC7}64  & 0.521583                           & 0.0126719                           & 41.1605                             & 0.011178                            & 46.6615                             \\ \hline
+		\cellcolor[HTML]{FFFFC7}128 & 2.04164                            & 0.0357029                           & 57.1841                             & 0.0292981                           & 69.6851                             \\ \hline
+		\cellcolor[HTML]{FFFFC7}256 & 7.89317                            & 0.119995                            & 65.7793                             & 0.072989                            & 108.142                             \\ \hline
+	\end{tabular}
+\end{table}
+
+Como se puede ver, la versión con memoria compartida es superior al resto; siendo las versiones de GPU muy superiores a la versión de CPU.
+Para finalizar me gustaría añadir que los kernels que realizan las reducciones se podrían lanzar simultaneamente, consiguiendo aún mas eficiencia.
+
+A continuación muestro las comparaciones en formato gráfico:
+
+\begin{center}
+	\includegraphics[scale=0.5]{img/compall}
+\end{center}
+
+\begin{center}
+	\includegraphics[scale=0.5]{img/compt2}
+\end{center}
+
+\begin{center}
+	\includegraphics[scale=0.5]{img/comps2}
+\end{center}
+
+
+
+Todo el código aquí mostrado se incluye también con la entrega de la práctica junto con \textit{Makefiles} individuales.
 
 \end{document}
