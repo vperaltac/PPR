@@ -73,8 +73,20 @@ int main (int argc, char *argv[]) {
     // Distribuimos la matriz entre los procesos
     MPI_Scatter(buf_envio, sizeof(int)*tam*tam, MPI_PACKED, buf_recep, tam*tam, MPI_INT,0,MPI_COMM_WORLD);
 
+    //TODO: Esta parte claramente no funciona
+    // quizas no hay que hacerlo en un bucle for
+    // repasar tamaño
+    // ¿Qué hace cada proceso?
+    // ¿Cómo repartir tareas?
+    int *buf_unpack = new int[tam*tam];
+    int posicion=0;
+    MPI_Unpack(buf_recep,tam*tam,&posicion,buf_unpack,tam*tam,MPI_INT,MPI_COMM_WORLD);
+
+    // buf_recep es el PACKED, ya no hace falta
+    free(buf_recep);
+
     for(int i=0;i<tam*tam;i++){
-        cout <<"P" << rank << " " << buf_recep[i] << " ";
+        cout <<"P" << rank << " " << buf_unpack[i] << " ";
     }
     cout << endl;
 
