@@ -12,7 +12,7 @@ using namespace std;
 int main (int argc, char *argv[]) {
     MPI::Init(argc, argv); 
 
-    if (argc != 2) {
+    if (argc != 2){
         cerr << "Sintaxis: " << argv[0] << " <archivo de grafo>" << endl;
         return(-1);
 	}
@@ -31,12 +31,12 @@ int main (int argc, char *argv[]) {
 
     // Broadcast the number of vertices to all processes
     MPI_Bcast(&nverts,1,MPI_INT, 0, MPI_COMM_WORLD);
-    
+
     const int bsize1d= nverts/size;
     const int bsize2d= bsize1d*nverts;
   
     int *A = G.Get_Matrix();
-          
+
 	//Process 0 scatters blocks of matrix A 	
 	int * local_A= new int[bsize2d];
 	MPI_Scatter(A,bsize2d,MPI_INT,local_A,bsize2d,MPI_INT, 0, MPI_COMM_WORLD);
@@ -55,7 +55,7 @@ int main (int argc, char *argv[]) {
  
 	// MAIN LOOP OF THE ALGORITHM
 	int inj, in, kn;
-	for(int k = 0; k < nverts; k++) {    
+	for(int k = 0; k < nverts; k++){    
         // Broadcat global row k to all processes
         int row_k_process=k/bsize1d;
         if (rank==row_k_process){
@@ -86,7 +86,7 @@ int main (int argc, char *argv[]) {
     MPI_Gather(local_A,bsize2d,MPI_INT,A,bsize2d,MPI_INT, 0, MPI_COMM_WORLD);
     double t2 = MPI_Wtime() - t1;
     
-    if (rank==0) {
+    if (rank==0){
         G.imprime(); 
         cout << "Tiempo gastado= " << t2 << endl << endl;
     }
