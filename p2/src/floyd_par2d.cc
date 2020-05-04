@@ -14,7 +14,7 @@ using namespace std;
 int main (int argc, char *argv[]) {    
     MPI::Init(argc,argv);
 
-        if (argc != 2){
+    if (argc != 2){
         cerr << "Sintaxis: " << argv[0] << " <archivo de grafo>" << endl;
         return(-1);
 	}
@@ -29,7 +29,7 @@ int main (int argc, char *argv[]) {
 	if(rank==0){
         G.lee(argv[1]);
         nverts = G.vertices;
-        //G.imprime();
+        G.imprime();
     }
 
     // Broadcast the number of vertices to all processes
@@ -43,9 +43,7 @@ int main (int argc, char *argv[]) {
 
     if(rank == 0){
         // Obtiene matriz local a repartir 
-        int** matriz_A = new int*[nverts];
-        for (int i = 0; i < nverts; ++i)
-            matriz_A[i] = new int[nverts];
+        int *matriz_A = G.Get_Matrix();
 
         // Defino el tipo bloque cuadrado
         MPI_Type_vector(tam,tam,nverts,MPI_INT,&MPI_BLOQUE);
@@ -60,7 +58,7 @@ int main (int argc, char *argv[]) {
             int columna_P = i%raiz_P;
             int comienzo=(columna_P*tam)+(fila_P*tam*tam*raiz_P);
 
-            MPI_Pack(matriz_A[comienzo],1,MPI_BLOQUE,buf_envio,sizeof(int)*nverts*nverts,&posicion,MPI_COMM_WORLD);
+            MPI_Pack(&matriz_A[comienzo],1,MPI_BLOQUE,buf_envio,sizeof(int)*nverts*nverts,&posicion,MPI_COMM_WORLD);
         }
 
         // Destruye la matriz local
@@ -74,5 +72,11 @@ int main (int argc, char *argv[]) {
 
     // Distribuimos la matriz entre los procesos
     MPI_Scatter(buf_envio, sizeof(int)*tam*tam, MPI_PACKED, buf_recep, tam*tam, MPI_INT,0,MPI_COMM_WORLD);
+
+    for(int i=0;i<tam*tam;i++){
+        cout <<"P" << rank << " " << buf_recep[i] << " ";
+    }
+    cout << endl;
+
     MPI::Finalize();
 }
