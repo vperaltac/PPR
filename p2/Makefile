@@ -1,12 +1,15 @@
 
-all: floyd_par1d floyd_seq
+all: bin/floyd_par1d bin/floyd_seq
 
-floyd_par1d: floyd_par1d.cc Graph.cc Graph.h
-	mpicxx -I./includes  -O3      floyd_par1d.cc Graph.cc -o floyd_par1d
+bin/floyd_par1d: src/floyd_par1d.cc lib/Graph.cc lib/Graph.h
+	mpicxx -I./lib  -O3      src/floyd_par1d.cc lib/Graph.cc -o bin/floyd_par1d
 
-floyd_seq: floyd_seq.cc Graph.cc Graph.h
-	mpicxx -I./includes  -O3   floyd_seq.cc Graph.cc -o floyd_seq
+bin/floyd_seq: src/floyd_seq.cc lib/Graph.cc lib/Graph.h
+	mpicxx -I./lib  -O3   src/floyd_seq.cc lib/Graph.cc -o bin/floyd_seq
+
+bin/floyd_par2d: src/floyd_par2d.cc lib/Graph.cc lib/Graph.h
+	mpicxx -I./lib -O3 src/floyd_par1d.cc lib/Graph.cc -o bin/floyd_par2d
 
 clean:
-	rm -f floyd_seq floyd_par1d  *.o.
+	rm -f bin/floyd_seq bin/floyd_par1d  *.o.
 
