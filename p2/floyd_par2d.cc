@@ -8,7 +8,10 @@
 
 using namespace std;
 
-int main (int argc, char *argv[]) {
+// N = nverts
+// P = size
+
+int main (int argc, char *argv[]) {    
     MPI::Init(argc,argv);
 
         if (argc != 2){
@@ -20,27 +23,32 @@ int main (int argc, char *argv[]) {
     int nverts,rank,size;
     MPI_Comm_rank( MPI_COMM_WORLD, &rank );
     MPI_Comm_size( MPI_COMM_WORLD, &size );
-        
-    // Get the number of processes
-    int world_size;
-    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
-
     MPI_Datatype MPI_BLOQUE;
-    ......
-    ......
 
-    raiz_P = sqrt(P);
-    tam = N/raiz_P;
+    // Read the Graph in process 0
+	if(rank==0){
+        G.lee(argv[1]);
+        nverts = G.vertices;
+        //G.imprime();
+    }
+
+    // Broadcast the number of vertices to all processes
+    MPI_Bcast(&nverts,1,MPI_INT, 0, MPI_COMM_WORLD);        
+
+    int raiz_P = sqrt(size);
+    int tam = nverts/raiz_P;
 
     // Creo buffer de envío para almacenar los datos empaquetados 
-    buf_envio = reservar_vector(N*N);
+    int *buf_envio = new int[nverts*nverts];
 
     if(rank == 0){
         // Obtiene matriz local a repartir 
-        Inicializa_matriz(N,N,matriz_A);
+        int** matriz_A = new int*[nverts];
+        for (int i = 0; i < nverts; ++i)
+            matriz_A[i] = new int[nverts];
 
         // Defino el tipo bloque cuadrado
-        MPI_Type_vector(tam,tam,N,MPI_INT,&MPI_BLOQUE);
+        MPI_Type_vector(tam,tam,nverts,MPI_INT,&MPI_BLOQUE);
 
         // Creo el nuevo tipo
         MPI_Type_commit(&MPI_BLOQUE);
@@ -48,11 +56,11 @@ int main (int argc, char *argv[]) {
         // Empaqueta bloque a bloque en el buffer de envío
         for(int i=0, posicion=0; i<size; ++i){
             // Cálculo la posición de comienzo de cada submatriz
-            fila_P = i/raiz_P;
-            columna_P = i%raiz_P;
-            comienzo=(columna_P*tam)+(fila_P*tam*tam*raiz_P);
+            int fila_P = i/raiz_P;
+            int columna_P = i%raiz_P;
+            int comienzo=(columna_P*tam)+(fila_P*tam*tam*raiz_P);
 
-            MPI_Pack(matriz_A(comienzo),1,MPI_BLOQUE,buf_envio,sizeof(int)*N*N,&posicion,MPI_COMM_WORLD);
+            MPI_Pack(matriz_A[comienzo],1,MPI_BLOQUE,buf_envio,sizeof(int)*nverts*nverts,&posicion,MPI_COMM_WORLD);
         }
 
         // Destruye la matriz local
@@ -62,11 +70,9 @@ int main (int argc, char *argv[]) {
     }
 
     // Creo un buffer de recepción
-    buf_recep = reservar_vector(tam*tam);
+    int *buf_recep = new int[tam*tam];
 
     // Distribuimos la matriz entre los procesos
     MPI_Scatter(buf_envio, sizeof(int)*tam*tam, MPI_PACKED, buf_recep, tam*tam, MPI_INT,0,MPI_COMM_WORLD);
-
-
     MPI::Finalize();
 }
