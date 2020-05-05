@@ -63,32 +63,43 @@ int main (int argc, char *argv[]) {
 
         // Destruye la matriz local
         free(matriz_A);
-        // Libera el tipo bloque
-        MPI_Type_free(&MPI_BLOQUE);
     }
 
     // Creo un buffer de recepción
     int *buf_recep = new int[tam*tam];
 
+
     // Distribuimos la matriz entre los procesos
     MPI_Scatter(buf_envio, sizeof(int)*tam*tam, MPI_PACKED, buf_recep, tam*tam, MPI_INT,0,MPI_COMM_WORLD);
 
-    //TODO: Esta parte claramente no funciona
-    // quizas no hay que hacerlo en un bucle for
-    // repasar tamaño
-    // ¿Qué hace cada proceso?
-    // ¿Cómo repartir tareas?
-    int *buf_unpack = new int[tam*tam];
-    int posicion=0;
-    MPI_Unpack(buf_recep,tam*tam,&posicion,buf_unpack,tam*tam,MPI_INT,MPI_COMM_WORLD);
+    // INICIO RECOGIDA DE DATOS
+    MPI_Gather(buf_recep,tam*tam,MPI_INT,buf_envio,sizeof(int)*tam*tam,MPI_PACKED,0,MPI_COMM_WORLD);
+
+    int *buf_unpack = new int[nverts*nverts];
+    if (rank == 0){
+        for (int i=0, posicion=0; i<size; ++i){
+            // Cálculo la posición de comienzo de cada submatriz
+            int fila_P = i/raiz_P;
+            int columna_P = i%raiz_P;
+            int comienzo=(columna_P*tam)+(fila_P*tam*tam*raiz_P);
+
+            MPI_Unpack(buf_recep,sizeof(int)*nverts*nverts,&posicion,&buf_unpack[comienzo],1,MPI_BLOQUE,MPI_COMM_WORLD);
+        }
+
+        for(int i=0;i<nverts;i++){
+            for(int j=0;j<nverts;j++){
+                cout << buf_unpack[i*nverts+j] << " ";
+            }
+            cout << endl;
+        }
+
+        // Libera el tipo bloque
+        MPI_Type_free(&MPI_BLOQUE);
+    }
 
     // buf_recep es el PACKED, ya no hace falta
     free(buf_recep);
-
-    for(int i=0;i<tam*tam;i++){
-        cout <<"P" << rank << " " << buf_unpack[i] << " ";
-    }
-    cout << endl;
+    free(buf_unpack);
 
     MPI::Finalize();
 }
