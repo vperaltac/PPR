@@ -113,6 +113,8 @@ int main (int argc, char *argv[]) {
         }
     }
 
+    free(subfila_k);
+    free(subcolumna_k);
     MPI_Barrier(MPI_COMM_WORLD);
     //***************************************************************************************
 
@@ -154,7 +156,7 @@ int main (int argc, char *argv[]) {
         MPI_Type_free(&MPI_BLOQUE);
     }
 
-    // buf_recep es el PACKED, ya no hace falta
+    free(buf_envio);
     free(buf_recep);
     free(buf_unpack);
 
