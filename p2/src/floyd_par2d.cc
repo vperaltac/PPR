@@ -29,9 +29,12 @@ int main (int argc, char *argv[]) {
 	if(rank==0){
         G.lee(argv[1]);
         nverts = G.vertices;
-        G.imprime();
+        //G.imprime();
     }
 
+    //***************************************************************************************
+    // DISTRIBUCIÓN INICIAL DE MATRIZ DE ENTRADA POR BLOQUES ENTRE LOS PROCESOS
+    //***************************************************************************************
     // Broadcast the number of vertices to all processes
     MPI_Bcast(&nverts,1,MPI_INT, 0, MPI_COMM_WORLD);        
 
@@ -47,8 +50,6 @@ int main (int argc, char *argv[]) {
 
         // Defino el tipo bloque cuadrado
         MPI_Type_vector(tam,tam,nverts,MPI_INT,&MPI_BLOQUE);
-
-        // Creo el nuevo tipo
         MPI_Type_commit(&MPI_BLOQUE);
 
         // Empaqueta bloque a bloque en el buffer de envío
@@ -68,11 +69,57 @@ int main (int argc, char *argv[]) {
     // Creo un buffer de recepción
     int *buf_recep = new int[tam*tam];
 
-
     // Distribuimos la matriz entre los procesos
     MPI_Scatter(buf_envio, sizeof(int)*tam*tam, MPI_PACKED, buf_recep, tam*tam, MPI_INT,0,MPI_COMM_WORLD);
+    //***************************************************************************************
 
-    // INICIO RECOGIDA DE DATOS
+    //***************************************************************************************
+    // ALGORITMO FLOYD PARALELO 2D
+    //***************************************************************************************
+    // Crear comunicadores comm_fila y comm_columna
+    MPI_Comm comm_fila, comm_columna;
+    MPI_Comm_split(MPI_COMM_WORLD, rank%raiz_P, rank, &comm_fila);
+    MPI_Comm_split(MPI_COMM_WORLD, rank/raiz_P, rank, &comm_columna);
+
+    int global_i_start = (rank/raiz_P)*tam;
+    int global_j_start = (rank%raiz_P)*tam;
+
+    int *subfila_k = new int[tam];
+    int *subcolumna_k = new int [tam];
+
+    for(int k=0;k<nverts;++k){
+        int proceso = k/tam;
+
+        if(k >= global_i_start && k < global_i_start+tam)
+            memcpy(subfila_k, &buf_recep[(k%tam)*tam],sizeof(int)*tam);
+
+        if(k >= global_j_start && k < global_j_start+tam){
+            for(int i=0;i<tam;++i){
+                subcolumna_k[i] = buf_recep[i*tam+(k%tam)];
+            }
+        }
+
+        // Broadcast de la fila y columna k-ésima
+        MPI_Bcast(subfila_k, tam, MPI_INT, proceso, comm_fila);
+        MPI_Bcast(subcolumna_k, tam, MPI_INT, proceso, comm_columna);
+
+        for(int i=0;i<tam;++i){
+            for(int j=0;j<tam;++j){
+                if(global_i_start+i != global_j_start+j && global_i_start+i != k && global_j_start+j != k){
+                    int ikj = subcolumna_k[i] + subfila_k[j];
+                    buf_recep[i*tam+j] = min(ikj,buf_recep[i*tam+j]);
+                }
+            }
+        }
+    }
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    //***************************************************************************************
+
+
+    //***************************************************************************************
+    // RECOGIDA DE RESULTADO DE CADA PROCESO EN EL PROCESO 0 Y DESEMPAQUETADO
+    //***************************************************************************************
     MPI_Gather(buf_recep,tam*tam,MPI_INT,buf_envio,sizeof(int)*tam*tam,MPI_PACKED,0,MPI_COMM_WORLD);
 
     int *buf_unpack = new int[nverts*nverts];
@@ -83,14 +130,24 @@ int main (int argc, char *argv[]) {
             int columna_P = i%raiz_P;
             int comienzo=(columna_P*tam)+(fila_P*tam*tam*raiz_P);
 
-            MPI_Unpack(buf_recep,sizeof(int)*nverts*nverts,&posicion,&buf_unpack[comienzo],1,MPI_BLOQUE,MPI_COMM_WORLD);
+            MPI_Unpack(buf_envio,sizeof(int)*nverts*nverts,&posicion,&buf_unpack[comienzo],1,MPI_BLOQUE,MPI_COMM_WORLD);
         }
 
+        cout << "--------------------------------" << endl;
         for(int i=0;i<nverts;i++){
+            cout << "A["<<i << ",*]= ";
+
             for(int j=0;j<nverts;j++){
-                cout << buf_unpack[i*nverts+j] << " ";
+                if (buf_unpack[i*nverts+j]==INF) 
+                    cout << "INF";
+                else  
+                    cout << buf_unpack[i*nverts+j];
+                
+                if (j<nverts-1) 
+                    cout << ",";
+                else
+                    cout << endl;
             }
-            cout << endl;
         }
 
         // Libera el tipo bloque
@@ -102,4 +159,5 @@ int main (int argc, char *argv[]) {
     free(buf_unpack);
 
     MPI::Finalize();
+    //***************************************************************************************
 }
