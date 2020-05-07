@@ -76,6 +76,10 @@ int main (int argc, char *argv[]) {
     //***************************************************************************************
     // ALGORITMO FLOYD PARALELO 2D
     //***************************************************************************************
+    MPI_Barrier(MPI_COMM_WORLD);
+    double t1 = MPI_Wtime();
+
+
     // Crear comunicadores comm_fila y comm_columna
     MPI_Comm comm_fila, comm_columna;
     MPI_Comm_split(MPI_COMM_WORLD, rank%raiz_P, rank, &comm_fila);
@@ -99,7 +103,6 @@ int main (int argc, char *argv[]) {
             }
         }
 
-        // Broadcast de la fila y columna k-ésima
         MPI_Bcast(subfila_k, tam, MPI_INT, proceso, comm_fila);
         MPI_Bcast(subcolumna_k, tam, MPI_INT, proceso, comm_columna);
 
@@ -116,6 +119,13 @@ int main (int argc, char *argv[]) {
     free(subfila_k);
     free(subcolumna_k);
     MPI_Barrier(MPI_COMM_WORLD);
+
+    double t2 = MPI_Wtime() - t1;
+    
+    if (rank==0){
+        G.imprime(); 
+        cout << "Tiempo gastado= " << t2 << endl << endl;
+    }
     //***************************************************************************************
 
 
