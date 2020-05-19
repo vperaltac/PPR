@@ -71,20 +71,22 @@ int main (int argc, char *argv[]) {
 
     // Distribuimos la matriz entre los procesos
     MPI_Scatter(buf_envio, sizeof(int)*tam*tam, MPI_PACKED, buf_recep, tam*tam, MPI_INT,0,MPI_COMM_WORLD);
+    // Cada proceso se queda con una matriz de tamaño tam*tam
+
     //***************************************************************************************
 
     //***************************************************************************************
     // ALGORITMO FLOYD PARALELO 2D
     //***************************************************************************************
-    MPI_Barrier(MPI_COMM_WORLD);
-    double t1 = MPI_Wtime();
-
-
     // Crear comunicadores comm_fila y comm_columna
     MPI_Comm comm_fila, comm_columna;
     MPI_Comm_split(MPI_COMM_WORLD, rank%raiz_P, rank, &comm_fila);
     MPI_Comm_split(MPI_COMM_WORLD, rank/raiz_P, rank, &comm_columna);
 
+    MPI_Barrier(MPI_COMM_WORLD);
+	double t1 = MPI_Wtime();
+
+    // valores para fila y columna inicial de la matriz GLOBAL para cada proceso
     int global_i_start = (rank/raiz_P)*tam;
     int global_j_start = (rank%raiz_P)*tam;
 
@@ -92,17 +94,27 @@ int main (int argc, char *argv[]) {
     int *subcolumna_k = new int [tam];
 
     for(int k=0;k<nverts;++k){
+        // Proceso que hará broadcast (RANK DE COMUNICADOR DE FILA Y COLUMNA) 
+        // (en nverts = 4, sólo 0 y 1 valores posibles)
         int proceso = k/tam;
 
-        if(k >= global_i_start && k < global_i_start+tam)
+        // si k está entre la primera fila de la submatriz y la última fila
+        // quiere decir que la subfila k forma parte de la submatriz actual
+        if(k >= global_i_start && k < global_i_start+tam){
+            // módulo tam para mantener el valor dentro del tamaño de las submatrices
+            // *tam porque es una matriz "vector", cada fila está en aumentos de 2 posiciones
             memcpy(subfila_k, &buf_recep[(k%tam)*tam],sizeof(int)*tam);
+        }
 
+        // si k está entre la primera columna de la submatriz y la última columna
+        // quiere decir que la subcolumna k forma parte de la submatriz actual
         if(k >= global_j_start && k < global_j_start+tam){
             for(int i=0;i<tam;++i){
                 subcolumna_k[i] = buf_recep[i*tam+(k%tam)];
             }
         }
 
+        // el proceso k/tam hace broadcast de su fila y columna
         MPI_Bcast(subfila_k, tam, MPI_INT, proceso, comm_fila);
         MPI_Bcast(subcolumna_k, tam, MPI_INT, proceso, comm_columna);
 
@@ -118,14 +130,9 @@ int main (int argc, char *argv[]) {
 
     free(subfila_k);
     free(subcolumna_k);
-    MPI_Barrier(MPI_COMM_WORLD);
 
+    MPI_Barrier(MPI_COMM_WORLD);
     double t2 = MPI_Wtime() - t1;
-    
-    if (rank==0){
-        G.imprime(); 
-        cout << "Tiempo gastado= " << t2 << endl << endl;
-    }
     //***************************************************************************************
 
 
@@ -165,6 +172,10 @@ int main (int argc, char *argv[]) {
         // Libera el tipo bloque
         MPI_Type_free(&MPI_BLOQUE);
     }
+
+
+    if(rank==0)
+        cout << "Tiempo gastado= " << t2 << endl << endl;
 
     free(buf_envio);
     free(buf_recep);
