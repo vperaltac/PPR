@@ -13,23 +13,30 @@ unsigned int NCIUDADES;
 int rank, size;
 
 main (int argc, char **argv) {
-        MPI::Init(argc,argv);
-	switch (argc) {
-		case 3:		NCIUDADES = atoi(argv[1]);
-					break;
-		default:	cerr << "La sintaxis es: bbseq <tama�o> <archivo>" << endl;
-					exit(1);
-					break;
+    MPI::Init(argc,argv);
+
+	switch(argc){
+		case 3:
+            NCIUDADES = atoi(argv[1]);
+        break;
+
+		default:	
+            cerr << "La sintaxis es: bbseq <tama�o> <archivo>" << endl;
+            exit(1);
+        break;
 	}
 
 	int** tsp0 = reservarMatrizCuadrada(NCIUDADES);
-	tNodo	nodo,         // nodo a explorar
+
+	tNodo   nodo,         // nodo a explorar
 			lnodo,        // hijo izquierdo
 			rnodo,        // hijo derecho
 			solucion;     // mejor solucion
-	bool activo,        // condicion de fin
+	
+    bool activo,        // condicion de fin
 		nueva_U;       // hay nuevo valor de c.s.
-	int  U;             // valor de c.s.
+	
+    int  U;             // valor de c.s.
 	int iteraciones = 0;
 	tPila pila;         // pila de nodos a explorar
 
@@ -38,7 +45,8 @@ main (int argc, char **argv) {
 
 	LeerMatriz (argv[2], tsp0);    // lee matriz de fichero
 	activo = !Inconsistente(tsp0);
-        double t=MPI::Wtime();
+    double t=MPI::Wtime();
+
 	while (activo) {       // ciclo del Branch&Bound
 		Ramifica (&nodo, &lnodo, &rnodo, tsp0);		
 		nueva_U = false;
@@ -74,17 +82,22 @@ main (int argc, char **argv) {
 				}
 			}
 		}
+
 		if (nueva_U) pila.acotar(U);
 		activo = pila.pop(nodo);
 		iteraciones++;
 	}
-        t=MPI::Wtime()-t;
-        MPI::Finalize();
-	printf ("Solucion: \n");
+
+    t=MPI::Wtime()-t;
+    MPI::Finalize();
+	
+    printf ("Solucion: \n");
 	EscribeNodo(&solucion);
-        cout<< "Tiempo gastado= "<<t<<endl;
+    
+    cout<< "Tiempo gastado= "<<t<<endl;
 	cout << "Numero de iteraciones = " << iteraciones << endl << endl;
-	liberarMatriz(tsp0);
+	
+    liberarMatriz(tsp0);
 }
 
 
