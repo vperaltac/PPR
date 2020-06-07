@@ -1,17 +1,14 @@
 
-bbseq: bbseq.o libbb.o
-	mpicxx -O3 bbseq.o libbb.o -o bbseq
+bin/bbseq: obj/bbseq.o obj/libbb.o
+	mpicxx -I./include -O3 obj/bbseq.o obj/libbb.o -o bin/bbseq
 	
-bbseq.o: bbseq.cc
-	mpicxx -O3 -c bbseq.cc
+obj/bbseq.o: src/bbseq.cc
+	mpicxx -I./include -O3 -c src/bbseq.cc -o obj/bbseq.o
 
 
-libbb.o: libbb.cc libbb.h
-	mpicxx -O3 -c  libbb.cc 
+obj/libbb.o: src/libbb.cc include/libbb.h
+	mpicxx -I./include -O3 -c src/libbb.cc -o obj/libbb.o  
 
 
 clean:
-	/bin/rm -f *.o bbseq
-
-
-
+	/bin/rm -f obj/*.o bin/bbseq
